@@ -13,7 +13,7 @@ import { generatePhrasingFixes } from './core/suggestionEngine';
 import { buildOptimizedResume } from './core/resumeOptimizer';
 import { downloadResumePDF } from './core/pdfExporter';
 import { AnalysisResult } from './types/ats';
-import { FileSearch, ArrowLeft, Shield, Sparkles, Download } from 'lucide-react';
+import { FileSearch, ArrowLeft, Sparkles, Download } from 'lucide-react';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -78,12 +78,6 @@ export default function App() {
               <span className="font-bold text-zinc-900 tracking-tight text-base sm:text-lg">Ideagentech ATS CVScore</span>
               <span className="text-xs text-zinc-500 block">ATS Compatibility & Keyword Scorer</span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs font-medium text-zinc-600">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-100 border border-zinc-200">
-              <Shield className="w-3.5 h-3.5 text-blue-600" /> Private • Runs in your browser
-            </span>
           </div>
         </div>
       </header>
