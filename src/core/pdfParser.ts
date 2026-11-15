@@ -1,73 +1,40 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import { ParseResult } from '../types/ats';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
+import { buildLines, RawItem } from './lineBuilder';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+// Worker is bundled with the app (no external CDN), so it works on Vercel/offline.
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export async function parseResumePDF(arrayBuffer: ArrayBuffer): Promise<ParseResult> {
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
-  const pdfDoc = await loadingTask.promise;
-  
-  let fullText = '';
-  const lines: string[] = [];
-  let currentLine = '';
-  let lastY: number | null = null;
-  let lastX = 0;
-  let columnShifts = 0;
+export async function extractResumeLines(buffer: ArrayBuffer): Promise<string[]> {
+  let pdf;
+  try {
+    pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+  } catch (err: any) {
+    if (err && err.name === 'PasswordException') {
+      throw new Error('This PDF is password protected. Please upload an unlocked copy.');
+    }
+    throw new Error('Could not read this file. Please upload a valid PDF resume.');
+  }
 
-  const standardSections = ['experience', 'education', 'skills', 'projects', 'summary', 'certifications', 'objective'];
-  const detectedSectionsSet = new Set<string>();
-
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
-    const page = await pdfDoc.getPage(i);
-    const textContent = await page.getTextContent();
-
-    textContent.items.forEach((item: any) => {
-      if (item.str && item.str.trim().length > 0) {
-        const str = item.str.trim();
-        const x = item.transform ? item.transform[4] : 0;
-        const y = item.transform ? item.transform[5] : 0;
-
-        if (lastY !== null && Math.abs(y - lastY) > 6) {
-          if (currentLine.trim()) {
-            lines.push(currentLine.trim());
-          }
-          currentLine = str;
-        } else {
-          currentLine += (currentLine ? ' ' : '') + str;
-        }
-        lastY = y;
-
-        fullText += str + ' ';
-
-        if (Math.abs(x - lastX) > 220 && x > 50 && lastX > 50) {
-          columnShifts++;
-        }
-        lastX = x;
-
-        const lowerStr = str.toLowerCase();
-        for (const sec of standardSections) {
-          if (lowerStr.includes(sec) && str.length < 35) {
-            detectedSectionsSet.add(sec);
-          }
-        }
+  const pages: RawItem[][] = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items: RawItem[] = [];
+    for (const raw of content.items as any[]) {
+      if (typeof raw.str === 'string' && raw.transform) {
+        items.push({ str: raw.str, x: raw.transform[4], y: raw.transform[5], w: raw.width || 0 });
       }
-    });
+    }
+    pages.push(items);
   }
 
-  if (currentLine.trim()) {
-    lines.push(currentLine.trim());
+  const lines = buildLines(pages);
+  const chars = lines.join('').length;
+  if (chars < 80) {
+    throw new Error(
+      'No readable text found. This looks like a scanned/image PDF. Please upload a text-based PDF (export from Word/Google Docs).'
+    );
   }
-
-  const cleanedText = fullText.replace(/\s+/g, ' ').trim();
-  const wordCount = cleanedText.split(/\s+/).filter(Boolean).length;
-  const hasMultiColumnRisk = columnShifts > 14;
-
-  return {
-    text: cleanedText,
-    lines,
-    wordCount,
-    hasMultiColumnRisk,
-    columnShifts,
-    detectedSections: Array.from(detectedSectionsSet)
-  };
+  return lines;
 }

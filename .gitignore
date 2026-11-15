@@ -1,13 +1,7 @@
-# Dependencies
-node_modules/
-
-# Production build output
-dist/
-
-# Environment variables
+node_modules
+dist
+.vercel
 .env
-.env.local
-
-# Editor & OS files
-.vscode/
+.env.*
+*.log
 .DS_Store
